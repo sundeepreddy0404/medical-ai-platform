@@ -1,0 +1,14 @@
+streamlit
+torch
+torchvision
+opencv-python-headless
+numpy
+pandas
+Pillow
+openai
+
+# REST API
+fastapi
+uvicorn[standard]
+python-multipart
+pydantic
