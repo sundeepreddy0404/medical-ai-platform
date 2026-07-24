@@ -70,6 +70,7 @@ The platform architecture follows a modular decoupled data flow:
 | Layer | Component | Technology |
 |---|---|---|
 | Frontend & UI | Presentation Layer | Streamlit |
+| API Layer | REST API Framework | FastAPI, Uvicorn |
 | Deep Learning | Neural Network Framework | PyTorch, Torchvision |
 | Explainable AI | Heatmap Visualisations | Custom Grad-CAM Engine, OpenCV, PIL |
 | Data Processing | Scientific Computing | NumPy, Pandas |
@@ -84,10 +85,59 @@ The platform architecture follows a modular decoupled data flow:
 ```
 medical-ai-platform/
 │
-├── app.py              # Main Application Entrypoint (UI, Model, Grad-CAM, LLM, DB)
-├── requirements.txt    # Project Dependency List
-├── Dockerfile           # Container Execution Blueprint
-└── README.md            # Comprehensive Technical Documentation
+├── core.py              # Shared logic: model loading, Grad-CAM, LLM reporting, DB access
+├── app.py               # Streamlit UI Entrypoint (imports core.py)
+├── api.py                # FastAPI REST API Entrypoint (imports core.py)
+├── requirements.txt     # Project Dependency List
+├── Dockerfile             # Container Execution Blueprint
+└── README.md              # Comprehensive Technical Documentation
+```
+
+`core.py` centralizes the model, Grad-CAM, LLM report generation, and database logic so both the Streamlit UI and the REST API run the exact same inference pipeline — no duplicated logic.
+
+---
+
+## 🔌 REST API
+
+The platform exposes a REST API (FastAPI) for programmatic access to the diagnostic pipeline, independent of the Streamlit UI.
+
+### Run the API locally
+```bash
+uvicorn api:app --host 0.0.0.0 --port 8000
+```
+
+Interactive Swagger docs: [http://localhost:8000/docs](http://localhost:8000/docs)
+
+### Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/health` | Liveness/readiness check |
+| `POST` | `/predict` | Upload an image (JPG/PNG); returns prediction, confidence, Grad-CAM heatmap (base64 PNG), and LLM report. Also logs the result to the database. |
+| `GET` | `/records?limit=100` | Returns recent prediction audit log entries, newest first |
+
+### Example: `/predict`
+
+```bash
+curl -X POST "http://localhost:8000/predict" \
+  -F "file=@sample_scan.jpg"
+```
+
+**Response**
+```json
+{
+  "filename": "sample_scan.jpg",
+  "prediction": "Normal / Unremarkable",
+  "confidence": 0.8421,
+  "llm_report": "**Automated Diagnostic Findings:** ...",
+  "heatmap_base64": "iVBORw0KGgoAAAANSUhEUgAA..."
+}
+```
+
+### Example: `/records`
+
+```bash
+curl "http://localhost:8000/records?limit=10"
 ```
 
 ---
@@ -141,11 +191,18 @@ set OPENAI_API_KEY="your-actual-api-key"
 ```
 
 **5. Run the Application**
+
+Streamlit UI:
 ```bash
 streamlit run app.py
 ```
-
 Open [http://localhost:8501](http://localhost:8501) in your web browser.
+
+REST API:
+```bash
+uvicorn api:app --host 0.0.0.0 --port 8000
+```
+Open [http://localhost:8000/docs](http://localhost:8000/docs) for interactive API docs.
 
 ---
 
@@ -191,6 +248,7 @@ CREATE TABLE records (
 | Deep Learning Performance | Leverages PyTorch ResNet50 backbone with standard tensor transformations and ImageNet weight initialization. |
 | Explainable AI (Grad-CAM) | Computes target convolutional gradient hooks to generate dynamic heatmaps without external black-box wrappers. |
 | LLM Integration | Structured clinical prompt construction targeting GPT models with automatic offline fallback logic. |
+| API Development | FastAPI REST service (`/predict`, `/records`, `/health`) sharing a single core inference pipeline with the Streamlit UI. |
 | Database Design | Embedded SQLite schema tracking system queries, predictions, confidence percentages, and timestamps. |
 | Software Engineering Best Practices | Clean single-file modular design, resource caching using `@st.cache_resource`, robust exception handling, and automated cloud deployments. |
 
